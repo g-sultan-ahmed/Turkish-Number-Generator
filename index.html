@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a12">
+<title>Türkçe Sayı Üreticisi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+–shadow-color: rgba(100, 80, 180, 1);
+–bg: #0a0a12;
+–surface: rgba(255,255,255,0.04);
+–border: rgba(255,255,255,0.08);
+–text: #f0eeff;
+–muted: rgba(240,238,255,0.45);
+–accent: #c4b5fd;
+–accent2: #f9a8d4;
+–radius: 16px;
+/* Safe area insets for notched phones */
+–safe-top: env(safe-area-inset-top, 0px);
+–safe-bottom: env(safe-area-inset-bottom, 0px);
+–safe-left: env(safe-area-inset-left, 0px);
+–safe-right: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+width: 100%; height: 100%;
+background: var(–bg);
+color: var(–text);
+font-family: ‘DM Sans’, sans-serif;
+overflow-x: hidden;
+/* Prevent text size inflation on rotation */
+-webkit-text-size-adjust: 100%;
+text-size-adjust: 100%;
+}
+
+/* Prevent double-tap zoom on interactive elements */
+button, select, .blur-area {
+touch-action: manipulation;
+}
+
+#bg-canvas {
+position: fixed;
+inset: 0;
+width: 100%;
+height: 100%;
+z-index: 0;
+pointer-events: none;
+}
+
+#noise-overlay {
+position: fixed;
+inset: 0;
+z-index: 1;
+pointer-events: none;
+opacity: 0.035;
+background-image: url(“data:image/svg+xml,%3Csvg viewBox=‘0 0 256 256’ xmlns=‘http://www.w3.org/2000/svg’%3E%3Cfilter id=‘noise’%3E%3CfeTurbulence type=‘fractalNoise’ baseFrequency=‘0.9’ numOctaves=‘4’ stitchTiles=‘stitch’/%3E%3C/filter%3E%3Crect width=‘100%25’ height=‘100%25’ filter=‘url(%23noise)’/%3E%3C/svg%3E”);
+background-size: 200px 200px;
+}
+
+main {
+position: relative;
+z-index: 2;
+min-height: 100vh;
+min-height: -webkit-fill-available;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+padding: 2rem 1rem;
+/* Respect safe areas on notched phones */
+padding-top: calc(2rem + var(–safe-top));
+padding-bottom: calc(2rem + var(–safe-bottom));
+padding-left: calc(1rem + var(–safe-left));
+padding-right: calc(1rem + var(–safe-right));
+gap: 2.5rem;
+}
+
+.header {
+text-align: center;
+position: relative;
+}
+
+.sparkle-title {
+font-family: ‘Playfair Display’, serif;
+font-size: clamp(2.8rem, 8vw, 6rem);
+font-weight: 900;
+line-height: 1;
+letter-spacing: -0.02em;
+background: linear-gradient(135deg, #f0eeff 0%, var(–accent) 40%, var(–accent2) 80%, #f0eeff 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+position: relative;
+display: inline-block;
+}
+
+.sparkle-title .sparkle-svg {
+position: absolute;
+pointer-events: none;
+z-index: 20;
+animation: sparkle-life 0.8s ease-in-out infinite;
+}
+
+@keyframes sparkle-life {
+0% { opacity: 0; transform: scale(0) rotate(75deg); }
+50% { opacity: 1; transform: scale(1) rotate(120deg); }
+100% { opacity: 0; transform: scale(0) rotate(150deg); }
+}
+
+.subtitle {
+font-size: 0.95rem;
+color: var(–muted);
+margin-top: 0.75rem;
+letter-spacing: 0.08em;
+text-transform: uppercase;
+font-weight: 300;
+}
+
+.card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: var(–radius);
+padding: 2rem 2.25rem;
+width: 100%;
+max-width: 520px;
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+}
+
+.control-row {
+display: flex;
+gap: 12px;
+align-items: center;
+flex-wrap: wrap;
+}
+
+.control-label {
+font-size: 0.75rem;
+letter-spacing: 0.1em;
+text-transform: uppercase;
+color: var(–muted);
+font-weight: 500;
+margin-bottom: 0.5rem;
+}
+
+select {
+flex: 1;
+min-width: 160px;
+height: 44px;
+padding: 0 14px;
+border-radius: 10px;
+border: 1px solid var(–border);
+background: rgba(255,255,255,0.05);
+color: var(–text);
+font-family: ‘DM Sans’, sans-serif;
+font-size: 0.95rem;
+cursor: pointer;
+outline: none;
+transition: border-color 0.2s;
+appearance: none;
+-webkit-appearance: none;
+background-image: url(“data:image/svg+xml,%3Csvg xmlns=‘http://www.w3.org/2000/svg’ width=‘12’ height=‘12’ viewBox=‘0 0 12 12’%3E%3Cpath fill=‘rgba(255,255,255,0.4)’ d=‘M6 8L1 3h10z’/%3E%3C/svg%3E”);
+background-repeat: no-repeat;
+background-position: right 14px center;
+padding-right: 36px;
+}
+
+select:hover, select:focus { border-color: rgba(196,181,253,0.4); }
+select option { background: #1a1a2e; }
+
+.gen-btn {
+height: 44px;
+padding: 0 28px;
+border-radius: 10px;
+border: 1px solid rgba(196,181,253,0.35);
+background: rgba(196,181,253,0.1);
+color: var(–accent);
+font-family: ‘DM Sans’, sans-serif;
+font-size: 0.95rem;
+font-weight: 500;
+cursor: pointer;
+transition: all 0.2s;
+white-space: nowrap;
+letter-spacing: 0.02em;
+/* Prevent highlight flash on mobile tap */
+-webkit-tap-highlight-color: transparent;
+}
+
+.gen-btn:hover {
+background: rgba(196,181,253,0.18);
+border-color: rgba(196,181,253,0.6);
+transform: translateY(-1px);
+}
+
+.gen-btn:active {
+transform: translateY(0) scale(0.97);
+background: rgba(196,181,253,0.22);
+}
+
+.number-section {
+margin-top: 2rem;
+text-align: center;
+min-height: 110px;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+}
+
+.big-number {
+font-family: ‘Playfair Display’, serif;
+font-size: clamp(3rem, 12vw, 5.5rem);
+font-weight: 700;
+letter-spacing: -0.02em;
+line-height: 1;
+background: linear-gradient(135deg, #ffffff 0%, var(–accent) 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+transition: opacity 0.3s;
+/* Allow long numbers to wrap gracefully */
+word-break: break-all;
+max-width: 100%;
+}
+
+.big-number.hidden { opacity: 0; }
+
+.prompt-msg {
+margin-top: 1rem;
+font-size: 0.9rem;
+color: var(–accent2);
+letter-spacing: 0.03em;
+min-height: 24px;
+opacity: 0;
+transition: opacity 0.8s ease;
+font-weight: 400;
+/* Prevent layout shift on longer messages */
+text-align: center;
+padding: 0 0.5rem;
+line-height: 1.5;
+}
+
+.prompt-msg.show { opacity: 1; }
+
+.divider {
+width: 100%;
+height: 1px;
+background: var(–border);
+margin: 1.75rem 0;
+}
+
+.blur-area {
+cursor: pointer;
+background: rgba(255,255,255,0.03);
+border: 1px solid var(–border);
+border-radius: 12px;
+padding: 1.25rem 1.5rem;
+text-align: center;
+transition: border-color 0.2s, background 0.2s;
+user-select: none;
+/* Prevent highlight flash on mobile tap */
+-webkit-tap-highlight-color: transparent;
+/* Bigger tap area on mobile */
+min-height: 64px;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+}
+
+.blur-area:hover { border-color: rgba(196,181,253,0.3); background: rgba(196,181,253,0.04); }
+
+.blur-area:active {
+background: rgba(196,181,253,0.07);
+border-color: rgba(196,181,253,0.4);
+}
+
+.blur-label {
+font-size: 0.7rem;
+text-transform: uppercase;
+letter-spacing: 0.12em;
+color: var(–muted);
+margin-bottom: 0.6rem;
+font-weight: 500;
+}
+
+.blur-text {
+font-family: ‘Playfair Display’, serif;
+font-size: 1.25rem;
+font-weight: 400;
+color: var(–text);
+filter: blur(10px);
+transition: filter 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+line-height: 1.6;
+word-break: break-word;
+}
+
+.blur-text.revealed { filter: blur(0); }
+
+.empty-state {
+font-size: 0.9rem;
+color: var(–muted);
+text-align: center;
+padding: 1rem 0 0.5rem;
+}
+
+.footer {
+font-size: 0.75rem;
+color: rgba(240,238,255,0.2);
+letter-spacing: 0.06em;
+text-transform: uppercase;
+}
+
+@keyframes float-in {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+.card { animation: float-in 0.6s ease both; }
+
+/* ─── Mobile optimisations ─── */
+@media (max-width: 480px) {
+main {
+gap: 1.75rem;
+justify-content: flex-start;
+padding-top: calc(3rem + var(–safe-top));
+}
+
+.card {
+padding: 1.5rem 1.25rem;
+}
+
+/* Stack controls vertically and give full-width tap targets */
+.control-row {
+flex-direction: column;
+gap: 10px;
+}
+
+select {
+width: 100%;
+/* Larger height for comfortable tapping */
+height: 50px;
+font-size: 1rem;
+border-radius: 12px;
+}
+
+.gen-btn {
+width: 100%;
+height: 50px;
+font-size: 1rem;
+border-radius: 12px;
+}
+
+.number-section {
+min-height: 90px;
+margin-top: 1.5rem;
+}
+
+/* Scale down big number on very small screens */
+.big-number {
+font-size: clamp(2.2rem, 14vw, 3.5rem);
+}
+
+.prompt-msg {
+font-size: 0.85rem;
+min-height: 40px;
+}
+
+.blur-area {
+padding: 1.25rem 1rem;
+border-radius: 14px;
+/* More comfortable tap zone */
+min-height: 80px;
+}
+
+.blur-text {
+font-size: 1.1rem;
+}
+
+.blur-label {
+font-size: 0.65rem;
+}
+
+.subtitle {
+font-size: 0.8rem;
+}
+
+.sparkle-title {
+font-size: clamp(2.4rem, 11vw, 3.5rem);
+}
+}
+
+/* ─── Very small phones (≤360px) ─── */
+@media (max-width: 360px) {
+.card {
+padding: 1.25rem 1rem;
+}
+
+.big-number {
+font-size: clamp(1.8rem, 13vw, 2.8rem);
+}
+
+.blur-text {
+font-size: 1rem;
+}
+}
+
+/* ─── Landscape mobile ─── */
+@media (max-height: 500px) and (orientation: landscape) {
+main {
+justify-content: flex-start;
+padding-top: calc(1rem + var(–safe-top));
+gap: 1rem;
+}
+
+.header {
+display: none;
+}
+
+.number-section {
+min-height: 70px;
+margin-top: 1rem;
+}
+
+.big-number {
+font-size: clamp(2rem, 8vw, 3rem);
+}
+
+.divider {
+margin: 1rem 0;
+}
+}
+</style>
+
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div id="noise-overlay"></div>
+
+<main>
+  <header class="header">
+    <h1 class="sparkle-title" id="main-title">Türkçe Sayılar</h1>
+    <p class="subtitle">Turkish Number Generator</p>
+  </header>
+
+  <div class="card">
+    <div class="control-label">Select digit count</div>
+    <div class="control-row">
+      <select id="digitSelect">
+        <option value="1">1 digit — 1 to 9</option>
+        <option value="2">2 digits — 01 to 99</option>
+        <option value="3" selected>3 digits — 001 to 999</option>
+        <option value="4">4 digits — 0001 to 9999</option>
+        <option value="5">5 digits</option>
+        <option value="6">6 digits</option>
+        <option value="7">7 digits</option>
+        <option value="8">8 digits</option>
+        <option value="9">9 digits</option>
+        <option value="10">10 digits</option>
+        <option value="11">11 digits</option>
+        <option value="12">12 digits</option>
+      </select>
+      <button class="gen-btn" onclick="generate()">Generate</button>
+    </div>
+
+```
+<div class="number-section">
+  <div class="big-number hidden" id="numDisplay"></div>
+  <div class="prompt-msg" id="promptMsg"></div>
+</div>
+
+<div id="blurSection" style="display:none;">
+  <div class="divider"></div>
+  <div class="blur-area" onclick="revealAnswer()">
+    <div class="blur-label">Türkçe yazım — tıkla / tap to reveal</div>
+    <div class="blur-text" id="blurText"></div>
+  </div>
+</div>
+
+<div class="empty-state" id="emptyState">Choose a digit count and press generate.</div>
+```
+
+  </div>
+
+  <footer class="footer">made for turkish practice</footer>
+</main>
+
+<script>
+var t1, t2, t3;
+
+function numberToTurkish(n) {
+  if (n === 0) return "sıfır";
+  var ones = ["","bir","iki","üç","dört","beş","altı","yedi","sekiz","dokuz"];
+  var tens = ["","on","yirmi","otuz","kırk","elli","altmış","yetmiş","seksen","doksan"];
+
+  function below1000(num) {
+    var r = "", h = Math.floor(num / 100), t = Math.floor((num % 100) / 10), o = num % 10;
+    if (h === 1) r += "yüz";
+    else if (h > 1) r += ones[h] + " yüz";
+    if (h > 0 && (t > 0 || o > 0)) r += " ";
+    if (t > 0) r += tens[t];
+    if (t > 0 && o > 0) r += " ";
+    if (o > 0) r += ones[o];
+    return r.trim();
+  }
+
+  var scales = [[1000000000000,"trilyon"],[1000000000,"milyar"],[1000000,"milyon"],[1000,"bin"]];
+  var result = "", rem = n;
+
+  for (var i = 0; i < scales.length; i++) {
+    var sc = scales[i][0], nm = scales[i][1];
+    if (rem >= sc) {
+      var chunk = Math.floor(rem / sc);
+      rem = rem % sc;
+      if (chunk === 1 && nm === "bin") result += (result ? " " : "") + "bin";
+      else result += (result ? " " : "") + below1000(chunk) + " " + nm;
+      if (rem > 0) result += " ";
+    }
+  }
+
+  if (rem > 0) result += below1000(rem);
+  return result.trim();
+}
+
+function generate() {
+  clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+
+  var digits = parseInt(document.getElementById("digitSelect").value);
+  var min = digits === 1 ? 1 : Math.pow(10, digits - 1);
+  var max = Math.pow(10, digits) - 1;
+  var num = Math.floor(Math.random() * (max - min + 1)) + min;
+  var padded = String(num).padStart(digits, "0");
+
+  var nd = document.getElementById("numDisplay");
+  var pm = document.getElementById("promptMsg");
+  var bt = document.getElementById("blurText");
+  var bs = document.getElementById("blurSection");
+  var es = document.getElementById("emptyState");
+
+  es.style.display = "none";
+  nd.classList.add("hidden");
+
+  setTimeout(function() {
+    nd.textContent = padded;
+    nd.classList.remove("hidden");
+  }, 150);
+
+  bt.textContent = numberToTurkish(num);
+  bt.classList.remove("revealed");
+
+  // Show blur section immediately with the number
+  bs.style.display = "block";
+  bs.style.animation = "float-in 0.5s ease both";
+
+  pm.classList.remove("show");
+  pm.textContent = "";
+
+  setTimeout(function() {
+    pm.textContent = "Write down the Turkish version of this number";
+    pm.classList.add("show");
+  }, 300);
+
+  // Hide first message after 7 seconds (down from 10)
+  t1 = setTimeout(function() {
+    pm.classList.remove("show");
+  }, 7300);
+
+  // Show second message after 7s + a short gap
+  t2 = setTimeout(function() {
+    pm.textContent = "Tap the blur below to check your answer";
+    pm.classList.add("show");
+  }, 8500);
+
+  t3 = setTimeout(function() {
+    pm.classList.remove("show");
+  }, 18500);
+}
+
+function revealAnswer() {
+  document.getElementById("blurText").classList.add("revealed");
+}
+
+(function initSparkles() {
+  var title = document.getElementById("main-title");
+  var colors = ["#c4b5fd", "#f9a8d4", "#a78bfa", "#fbcfe8", "#ddd6fe"];
+
+  function makeSparkle() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    var x = Math.random() * 110 - 5;
+    var y = Math.random() * 110 - 5;
+    var color = colors[Math.floor(Math.random() * colors.length)];
+    var size = Math.random() * 14 + 8;
+    var delay = Math.random() * 2;
+
+    svg.setAttribute("width", size);
+    svg.setAttribute("height", size);
+    svg.setAttribute("viewBox", "0 0 21 21");
+    svg.classList.add("sparkle-svg");
+    svg.style.left = x + "%";
+    svg.style.top = y + "%";
+    svg.style.animationDelay = delay + "s";
+    svg.style.animationDuration = (Math.random() * 0.6 + 0.7) + "s";
+
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M9.82531 0.843845C10.0553 0.215178 10.9446 0.215178 11.1746 0.843845L11.8618 2.72026C12.4006 4.19229 12.3916 6.39157 13.5 7.5C14.6084 8.60843 16.8077 8.59935 18.2797 9.13822L20.1561 9.82534C20.7858 10.0553 20.7858 10.9447 20.1561 11.1747L18.2797 11.8618C16.8077 12.4007 14.6084 12.3916 13.5 13.5C12.3916 14.6084 12.4006 16.8077 11.8618 18.2798L11.1746 20.1562C10.9446 20.7858 10.0553 20.7858 9.82531 20.1562L9.13819 18.2798C8.59932 16.8077 8.60843 14.6084 7.5 13.5C6.39157 12.3916 4.19225 12.4007 2.72023 11.8618L0.843814 11.1747C0.215148 10.9447 0.215148 10.0553 0.843814 9.82534L2.72023 9.13822C4.19225 8.59935 6.39157 8.60843 7.5 7.5C8.60843 6.39157 8.59932 4.19229 9.13819 2.72026L9.82531 0.843845Z");
+    path.setAttribute("fill", color);
+    svg.appendChild(path);
+    title.appendChild(svg);
+
+    var lifetime = Math.random() * 2000 + 1000;
+    setTimeout(function() {
+      if (svg.parentNode) svg.parentNode.removeChild(svg);
+      makeSparkle();
+    }, lifetime + delay * 1000);
+  }
+
+  for (var i = 0; i < 10; i++) {
+    setTimeout(makeSparkle, i * 200);
+  }
+})();
+
+(function initEtherealBg() {
+  var canvas = document.getElementById("bg-canvas");
+  var ctx = canvas.getContext("2d");
+  var W, H, time = 0;
+  var blobs = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function initBlobs() {
+    blobs = [];
+    var blobColors = [
+      [80, 40, 180],
+      [140, 60, 200],
+      [60, 20, 140],
+      [100, 50, 220],
+      [160, 80, 180],
+      [50, 30, 160]
+    ];
+    for (var i = 0; i < 6; i++) {
+      var c = blobColors[i % blobColors.length];
+      blobs.push({
+        x: Math.random(),
+        y: Math.random(),
+        r: 0.25 + Math.random() * 0.25,
+        speedX: (Math.random() - 0.5) * 0.0003,
+        speedY: (Math.random() - 0.5) * 0.0003,
+        color: c,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#0a0a12";
+    ctx.fillRect(0, 0, W, H);
+
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i];
+      b.x += b.speedX;
+      b.y += b.speedY;
+      if (b.x < -0.3) b.x = 1.3;
+      if (b.x > 1.3) b.x = -0.3;
+      if (b.y < -0.3) b.y = 1.3;
+      if (b.y > 1.3) b.y = -0.3;
+
+      var pulse = 0.85 + 0.15 * Math.sin(time * 0.4 + b.phase);
+      var radius = b.r * Math.min(W, H) * pulse;
+      var grd = ctx.createRadialGradient(b.x * W, b.y * H, 0, b.x * W, b.y * H, radius);
+      grd.addColorStop(0, "rgba(" + b.color[0] + "," + b.color[1] + "," + b.color[2] + ",0.22)");
+      grd.addColorStop(0.5, "rgba(" + b.color[0] + "," + b.color[1] + "," + b.color[2] + ",0.07)");
+      grd.addColorStop(1, "rgba(" + b.color[0] + "," + b.color[1] + "," + b.color[2] + ",0)");
+      ctx.beginPath();
+      ctx.arc(b.x * W, b.y * H, radius, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+
+    time += 0.016;
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  initBlobs();
+  draw();
+  window.addEventListener("resize", function() { resize(); });
+})();
+</script>
+
+</body>
+</html>
